@@ -1,0 +1,9 @@
+{
+  "name": "MCP23017",
+  "render_readme": true,
+  "iot_class": "local_polling",
+  "domains":[
+      "binary_sensor",
+      "switch"
+  ]
+}
