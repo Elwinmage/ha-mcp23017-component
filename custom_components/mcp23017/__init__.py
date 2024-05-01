@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import device_registry
 from homeassistant.const import EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP
-from .const import DOMAIN, PLATFORMS, DEFAULT_SCAN_RATE, DEVICE_MANUFACTURER,DEFAULT_INVERT_LOGIC,CONF_I2C_ADDRESS
+from .const import DOMAIN, PLATFORMS, DEFAULT_SCAN_RATE, DEVICE_MANUFACTURER,DEFAULT_INVERT_LOGIC,CONF_I2C_ADDRESS, MAX_RETRY
 
 import traceback
 
@@ -209,6 +209,7 @@ class MCP23017(threading.Thread):
     def run(self):
         """Poll all ports once and call corresponding callback if a change is detected."""
         _LOGGER.info("%s start polling thread", self.unique_id)
+        error_cpt=0
         while self._run:
             with self:
                 try:
@@ -257,11 +258,16 @@ class MCP23017(threading.Thread):
                             self._smbus.write_byte_data(self._address,self.OLATA+port,self._new_switches_states[port])
                             self._switches_states[port] = self._new_switches_states[port] 
                     self._last_state = self._new_state.copy()
+                    error_cpt = 0
                 except  Exception as error:
-                    _LOGGER.error(traceback.format_exc())
-                    _LOGGER.error("Error polling device %s"%(self.unique_id))
-                    _LOGGER.error(error)
-                    self.reInit()
+                    error_cpt += 1
+                    if error_cpt > MAX_RETRY: 
+                        _LOGGER.error(traceback.format_exc())
+                        _LOGGER.error("Error polling device %s"%(self.unique_id))
+                        _LOGGER.error(error)
+                        self.reInit()
+                        error_cpt = 0
+                    
             time.sleep(DEFAULT_SCAN_RATE)
             
     def register_entity(self, entity):
@@ -297,13 +303,16 @@ class MCP23017(threading.Thread):
  
     def checkConf(self):
         """CHeck conf has not changed"""
-        for port in range(2):
-            if (
-                    (self._invert[port] & self._io_dir[port] != self._smbus.read_byte_data(self._address, self.IOPOLA+port)) or
-                    (self._io_dir[port] != self._smbus.read_byte_data(self._address, self.IODIRA+port)) or 
-                    (self._pullup[port] != self._smbus.read_byte_data(self._address, self.GPPUA+port))
-                    ):
-                return False
+        try:
+            for port in range(2):
+                if (
+                        (self._invert[port] & self._io_dir[port] != self._smbus.read_byte_data(self._address, self.IOPOLA+port)) or
+                        (self._io_dir[port] != self._smbus.read_byte_data(self._address, self.IODIRA+port)) or 
+                        (self._pullup[port] != self._smbus.read_byte_data(self._address, self.GPPUA+port))
+                        ):
+                    return False
+        except:
+            _LOGGER.error("Check conf")
         return True
         
     def confGPIO(self,newConf=True):
