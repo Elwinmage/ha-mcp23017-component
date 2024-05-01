@@ -50,17 +50,13 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     }
 )
 
-
 async def async_setup_entry(hass, entry_infos, async_add_entities):
     """Set up a MCP23017 binary_sensor entry."""
-
     if(entry_infos.data[CONF_FLOW_PLATFORM])=='binary_sensor':
         entity = MCP23017BinarySensor(hass, entry_infos)
         async_add_entities([entity], True)
         platform = async_get_current_platform()
         await async_get_or_create(hass, entity)
-
-
 
 class MCP23017BinarySensor(BinarySensorEntity):
     """Represent a binary sensor that uses MCP23017."""
@@ -175,12 +171,6 @@ class MCP23017BinarySensor(BinarySensorEntity):
     def unsubscribe_update_listener(self):
         """Remove listener from config entry options."""
         self._unsubscribe_update_listener()
-
-    # Sync functions executed outside of the hass async loop
-
-    # def push_update(self, state):
-    #     """Signal a state change and call the async counterpart."""
-    #     asyncio.run_coroutine_threadsafe(self.async_push_update(state), self.hass.loop)
 
     async def async_unload_entry(hass, config_entry):
         """Unload MCP23017 binary entry corresponding to config_entry."""

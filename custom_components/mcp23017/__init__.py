@@ -17,7 +17,6 @@ import traceback
 _LOGGER = logging.getLogger(__name__)
 MCP23017_DATA_LOCK = asyncio.Lock()
 
-
 PLATFORMS = ["binary_sensor", "switch"]
 
 
@@ -54,27 +53,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
     entry.async_on_unload(entry.add_update_listener(update_listener))
-
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 async def async_unload_entry(hass, config_entry):
     """Unload MCP23017 switch entry corresponding to config_entry."""
-    _LOGGER.warning("[FIXME] async_unload_entry not implemented for component") 
     component = hass.data[DOMAIN][config_entry.data[CONF_I2C_ADDRESS]]
     component.reInit()
 
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Fonction qui force le rechargement des entités associées à une configEntry"""
-    _LOGGER.warning("[FIXME] update_lsitener not implemented for component")
     component = hass.data[DOMAIN][entry.data[CONF_I2C_ADDRESS]]
     component.reInit()
     await hass.config_entries.async_reload(entry.entry_id)
 
 async def async_get_or_create(hass, entity):
     """Get or create a MCP23017 component from entity bus and i2c address."""
-    _LOGGER.debug("async_get_or_create")
-
     i2c_address = entity.address
     # DOMAIN data async mutex
     try:
@@ -146,8 +140,6 @@ class MCP23017(threading.Thread):
     OLATA   = 0x14 #
     OLATB   = 0x15 #
 
-
-
     def __init__(self, hass,address):
         # Address is this form /dev/i2c-1@0x48
         self._hass     = hass
@@ -167,11 +159,11 @@ class MCP23017(threading.Thread):
         self._invert     = None
         self._pullup     = None
         self._hw_sync    = None
+
         # switch state
         self._switches_states     = [0b00000000,0b00000000]   
         # switch new_state
         self._new_switches_states = [0b00000000,0b00000000]   
-        
         
         threading.Thread.__init__(self, name=self.unique_id)
         _LOGGER.info("%s device created", self.unique_id)
@@ -198,6 +190,7 @@ class MCP23017(threading.Thread):
     def bus(self):
         """Return I2C bus number"""
         return self._bus
+
     @property
     def address(self):
         """Return I2C address"""
@@ -215,18 +208,19 @@ class MCP23017(threading.Thread):
 
     def run(self):
         """Poll all ports once and call corresponding callback if a change is detected."""
-        first = True # re-send status in case of reInit
         _LOGGER.info("%s start polling thread", self.unique_id)
         while self._run:
             with self:
                 try:
+                    # Conf has changed
                     if not self._to_init and not self.checkConf():
                         self._to_init = True
+                    # Reinitialisation needed
                     if self._to_init:
                         self.confGPIO()
                         reInit = True
                         time.sleep(1)
-                    #_LOGGER.debug("heartrate: %s",self.unique_id)
+
                     for port in range (2):
                             
                         status  = self._smbus.read_byte_data(self._address, self.GPIOA+port)
@@ -249,11 +243,10 @@ class MCP23017(threading.Thread):
                             statusStr=bin(status)[2:].rjust(8,'0')[::-1]
                             for s in bin(changes)[2:].rjust(8,'0')[::-1]:
                                 if s == '1': # State changes on this pin
-                                    asyncio.run_coroutine_threadsafe(self._entities[pin_nb+port*8].async_push_update(statusStr[pin_nb]=="1"), self._hass.loop)
-
+                                    if type(self._entities[pin_nb+port*8]).__name__ == 'MCP23017BinarySensor':
+                                        asyncio.run_coroutine_threadsafe(self._entities[pin_nb+port*8].async_push_update(statusStr[pin_nb]=="1"), self._hass.loop)
                                     _LOGGER.debug("Pin %d change to %s"%((pin_nb+port*8),statusStr[pin_nb]))
                                 pin_nb += 1
-                            #TODO hw_sync for switches
                             _LOGGER.debug("[%s] Last Inputs State:%s "%(self.unique_id,self.toBin(self._last_state)))
                             _LOGGER.debug("[%s] New  Inputs State:%s "%(self.unique_id,self.toBin(self._new_state)))
                         #write switch commands
@@ -277,9 +270,6 @@ class MCP23017(threading.Thread):
             if type(entity).__name__ == 'MCP23017Switch':
                 entity.set_register(self._new_switches_states)
             self._entities[entity.pin] = entity
-            
-            # Trigger a callback to update initial state
-            #self._update_bitmap |= (1 << entity.pin) & 0xFFFF
             self.reInit()
             _LOGGER.info(
                 "%s(pin %d:'%s') attached to %s",
@@ -288,15 +278,15 @@ class MCP23017(threading.Thread):
                 entity.name,
                 self.unique_id,
             )
-
         return True
 
 
-
     def toBin(self,s):
+        """Display binaries registers"""
         return  "[ %s , %s ]"%(bin(s[0])[2:].rjust(8,'0'),bin(s[1])[2:].rjust(8,'0'))
     
     def displayStatus(self):
+        """Display configuration and states"""
         _LOGGER.info("########################################")
         _LOGGER.info('#               GPIOIA      GPIOB ')
         _LOGGER.info('# LastState: %s'%self.toBin(self._last_state))
@@ -306,6 +296,7 @@ class MCP23017(threading.Thread):
         _LOGGER.info('#   Hw sync: %s'%self.toBin(self._hw_sync))
  
     def checkConf(self):
+        """CHeck conf has not changed"""
         for port in range(2):
             if (
                     (self._invert[port] & self._io_dir[port] != self._smbus.read_byte_data(self._address, self.IOPOLA+port)) or
@@ -316,6 +307,7 @@ class MCP23017(threading.Thread):
         return True
         
     def confGPIO(self,newConf=True):
+        """Configure GPIO"""
         if newConf:
             #                     GPIOIA      GPIOB
             self._last_state = [0b00000000,0b00000000]
@@ -356,13 +348,11 @@ class MCP23017(threading.Thread):
             self._smbus.write_byte_data(self._address, self.OLATA+port, switches_invert)
             self._switches_states[port] = switches_invert
             self._new_switches_states[port] = switches_invert
-            
             #set selected IO direction 
             self._smbus.write_byte_data(self._address, self.IODIRA+port, self._io_dir[port])
             #set pullup 
             self._smbus.write_byte_data(self._address, self.GPPUA+port, self._pullup[port])
             # TODO hw_sync
-
         _LOGGER.info("########################################")
         self._to_init = False
         self.displayStatus()

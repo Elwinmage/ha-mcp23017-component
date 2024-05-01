@@ -71,7 +71,7 @@ class MCP23017Switch(ToggleEntity):
             self._gpio =self._pin_number
             self._port = 0
         else:
-            self._gpio =self._pin_number - 1
+            self._gpio =self._pin_number - 8
             self._port = 1
         
         self._register = None
@@ -196,7 +196,6 @@ class MCP23017Switch(ToggleEntity):
     
     def unsubscribe_update_listener(self):
         """Remove listener from config entry options."""
-        _LOGGER.warning("[FIXME] unsubscribe_update_listener  not implemented")
         self._unsubscribe_update_listener()
 
     async def async_unload_entry(hass, config_entry):
