@@ -154,6 +154,7 @@ class MCP23017(threading.Thread):
         
         # GPIO status
         self._to_init = True
+        self._first_init = True
         self._last_state = None
         self._io_dir     = None 
         self._invert     = None
@@ -339,8 +340,8 @@ class MCP23017(threading.Thread):
                         pin  = entity.pin - 8
                         port = 1
                     if type(entity).__name__ == 'MCP23017Switch':
-                        if entity._hw_sync:
-                            self._hw_sync[port] =  self._hw_sync[port] | (1 << pin) 
+                        if entity.is_on:
+                            self._new_state[port] =  self._new_state[port] | (1 << pin) 
                     elif type(entity).__name__ == 'MCP23017BinarySensor':
                         self._io_dir[port] =  self._io_dir[port] | (1 << pin)     
                         if entity._pullup == 'UP':
@@ -354,9 +355,18 @@ class MCP23017(threading.Thread):
             self._smbus.write_byte_data(self._address, self.IOPOLA+port, inputs_invert)
             # switch invert
             switches_invert = self._invert[port] & ~ self._io_dir[port]
-            self._smbus.write_byte_data(self._address, self.OLATA+port, switches_invert)
-            self._switches_states[port] = switches_invert
-            self._new_switches_states[port] = switches_invert
+            #self._smbus.write_byte_data(self._address, self.OLATA+port, switches_invert)
+            
+            if self._first_init == True:
+                self._switches_states[port] = switches_invert
+                self._new_switches_states[port] = switches_invert
+                if port == 1:
+                    self._first_init = False
+            
+            self._smbus.write_byte_data(self._address,self.OLATA+port,self._new_switches_states[port])
+
+
+            
             #set selected IO direction 
             self._smbus.write_byte_data(self._address, self.IODIRA+port, self._io_dir[port])
             #set pullup 
