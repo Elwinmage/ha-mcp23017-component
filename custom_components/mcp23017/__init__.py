@@ -313,7 +313,7 @@ class MCP23017(threading.Thread):
                         ):
                     return False
         except:
-            _LOGGER.error("Check conf")
+            _LOGGER.warning("Check conf failed reading data")
         return True
         
     def confGPIO(self,newConf=True):
