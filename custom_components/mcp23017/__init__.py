@@ -303,7 +303,7 @@ class MCP23017(threading.Thread):
         _LOGGER.info('#   Hw sync: %s'%self.toBin(self._hw_sync))
  
     def checkConf(self):
-        """CHeck conf has not changed"""
+        """Check conf has not changed"""
         try:
             for port in range(2):
                 if (
@@ -312,8 +312,9 @@ class MCP23017(threading.Thread):
                         (self._pullup[port] != self._smbus.read_byte_data(self._address, self.GPPUA+port))
                         ):
                     return False
-        except:
+        except Exception as err:
             _LOGGER.warning("Check conf failed reading data")
+            _LOGGER.warning(err)
         return True
         
     def confGPIO(self,newConf=True):
